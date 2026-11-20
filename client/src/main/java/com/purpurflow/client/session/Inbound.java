@@ -1,6 +1,7 @@
 package com.purpurflow.client.session;
 
 import com.purpurflow.client.net.FlowPayload;
+import com.purpurflow.client.compat.VanillaFallback;
 import com.purpurflow.common.protocol.*;
 import com.purpurflow.common.control.*;
 import com.purpurflow.common.state.Delta;
