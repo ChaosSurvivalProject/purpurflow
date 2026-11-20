@@ -1,88 +1,100 @@
 #!/usr/bin/env python3
 """
-PurpurFlow 压测口径脚本（第 4 阶段）。
-模拟 N 条逻辑更新，对比「逐字段基线」与「本方案：delta+脏位图+字典+合包」的
-总字节数、包数、有效载荷比、每逻辑更新平均字节。输出 CSV 供前后对照。
+PurpurFlow 真实压测汇总（第 3 阶段，修复 R-11）。
 
-用法: python3 bench.py --updates 1000 --fields 20 --out bench_result.csv
+重要口径（诚实性）：
+  * 本脚本不再自己估算字节数。真实编码字节由 Java 探针 BenchHarness.java 直接调用
+    FrameCodec/Snapshot/Delta/DictSync 的真实实现产生，本脚本只做汇总与 CSV 落盘。
+  * 有效逻辑字节与链路字节用同一定义（帧内 delta 有效载荷），payload_ratio <= 1，
+    不再出现旧脚本 >1 的不合理值。
+  * 延迟：本环境无真实 Netty 链路，只统计编码 CPU 耗时（nanoTime），
+    P50/P99 链路延迟、丢包率、重连恢复时间标为「未验证」，见 06_live_demo.md。
+
+用法（推荐：先编译 Java 探针，再把 TSV 喂进来）：
+  javac -cp <classes> -d <classes> test/bench/BenchHarness.java
+  java -cp <classes> BenchHarness 10000 20 25 > bench_real.tsv
+  python3 bench.py --tsv bench_real.tsv --out bench_result.csv
+
+也可直接手工给 TSV 十列（兼容无 --tsv 场景）。
 """
 import argparse
 import csv
-import random
+import sys
+from datetime import datetime, timezone
 
-# 基线：每个字段一个 JSON 包
-def baseline_bytes(fields):
-    total = 0
-    for i in range(fields):
-        # {"field_12":12345} + 通道/包头摊销估计 40B
-        total += len('{"field_' + str(i) + '":' + str(random.randint(0, 999)) + '}') + 40
-    return total
+FIELDS = [
+    "updates", "fields_per_update", "dirty_ratio_pct",
+    "baseline_total_bytes", "optimized_total_bytes", "logical_payload_bytes",
+    "baseline_packets", "optimized_packets",
+    "baseline_encode_nanos", "optimized_encode_nanos",
+]
 
-# 本方案：脏位图(8B) + 每变更字段 varint(~2B) + 帧头(~20B)，多消息合包
-def optimized_bytes(fields, dirty_ratio=0.25, compress=False):
-    dirty = max(1, int(fields * dirty_ratio))
-    frame = 20 + 8  # 帧头 + 脏位图(u64)
-    frame += dirty * 2  # ZigZag varint 变更值
-    if compress:
-        frame = int(frame * 0.85)  # 骨架估算，真实以实测 A/B 为准
-    return frame
 
-def run(updates, fields, compress):
-    base_total = 0
-    opt_total = 0
-    base_pkts = 0
-    opt_pkts = 0
-    logical_bytes = 0
-    for _ in range(updates):
-        base_total += baseline_bytes(fields)
-        base_pkts += fields                 # 每字段一个包
-        opt_total += optimized_bytes(fields, compress=compress)
-        opt_pkts += 1                       # 合包：一帧
-        # 有效逻辑信息量：每字段真实值按 varint ~2B（示意假设）。
-        # 注意：本脚本为口径演示，delta 只传变更字段，故比值可能>1；
-        # 真实有效载荷比须用抓包工具测「有效逻辑字节/链路总字节」，见 docs/06。
-        logical_bytes += fields * 2
+def parse_tsv(path):
+    with open(path, encoding="utf-8") as f:
+        line = f.readline().strip()
+    parts = line.split()
+    if len(parts) < 10:
+        raise ValueError(f"TSV 需至少 10 列，实际 {len(parts)}: {line}")
+    vals = [int(x) for x in parts[:10]]
+    return dict(zip(FIELDS, vals))
 
-    def payload_ratio(total):
-        return logical_bytes / total if total else 0
 
-    return {
-        "updates": updates,
-        "fields_per_update": fields,
-        "baseline_total_bytes": base_total,
-        "optimized_total_bytes": opt_total,
-        "byte_reduction_pct": round(100 * (base_total - opt_total) / base_total, 2),
-        "baseline_packets": base_pkts,
-        "optimized_packets": opt_pkts,
-        "packet_reduction_pct": round(100 * (base_pkts - opt_pkts) / base_pkts, 2),
-        "baseline_payload_ratio": round(payload_ratio(base_total), 4),
-        "optimized_payload_ratio": round(payload_ratio(opt_total), 4),
-        "baseline_bytes_per_update": round(base_total / updates, 2),
-        "optimized_bytes_per_update": round(opt_total / updates, 2),
-        "compression": compress,
-    }
+def derive(r):
+    up = r["updates"]
+    b, o, logical = r["baseline_total_bytes"], r["optimized_total_bytes"], r["logical_payload_bytes"]
+    out = dict(r)
+    out["byte_reduction_pct"] = round(100 * (b - o) / b, 2) if b else 0
+    out["packet_reduction_pct"] = round(
+        100 * (r["baseline_packets"] - r["optimized_packets"]) / r["baseline_packets"], 2
+    ) if r["baseline_packets"] else 0
+    # 有效载荷比：同一口径下应 <= 1
+    out["baseline_payload_ratio"] = round(logical / b, 4) if b else 0
+    out["optimized_payload_ratio"] = round(logical / o, 4) if o else 0
+    out["baseline_bytes_per_update"] = round(b / up, 2)
+    out["optimized_bytes_per_update"] = round(o / up, 2)
+    out["baseline_encode_us_per_update"] = round(r["baseline_encode_nanos"] / up / 1000, 3)
+    out["optimized_encode_us_per_update"] = round(r["optimized_encode_nanos"] / up / 1000, 3)
+    out["measured_at_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    out["source"] = "BenchHarness.java (real FrameCodec/Snapshot/Delta encode)"
+    # 未验证指标：明确留空标注，禁止编造
+    out["p50_p99_link_latency_ms"] = "UNVERIFIED(no real network)"
+    out["packet_loss_rate"] = "UNVERIFIED(no real network)"
+    out["reconnect_recovery_ms"] = "UNVERIFIED(no real server)"
+    out["cpu_heap_delta"] = "UNVERIFIED(no soak run)"
+    return out
+
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--updates", type=int, default=1000)
-    ap.add_argument("--fields", type=int, default=20)
-    ap.add_argument("--compress", action="store_true")
+    ap.add_argument("--tsv", help="BenchHarness.java 输出的单行 TSV 文件")
+    ap.add_argument("--inline", help="直接给 10 列 TSV 字符串")
     ap.add_argument("--out", default="bench_result.csv")
     args = ap.parse_args()
 
-    rows = [run(args.updates, args.fields, False)]
-    if args.compress:
-        rows.append(run(args.updates, args.fields, True))
+    if args.tsv:
+        raw = parse_tsv(args.tsv)
+    elif args.inline:
+        vals = [int(x) for x in args.inline.split()[:10]]
+        raw = dict(zip(FIELDS, vals))
+    else:
+        print("需提供 --tsv 或 --inline（本脚本不做估算）", file=sys.stderr)
+        sys.exit(2)
 
+    row = derive(raw)
     with open(args.out, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=rows[0].keys())
+        w = csv.DictWriter(f, fieldnames=list(row.keys()))
         w.writeheader()
-        w.writerows(rows)
+        w.writerow(row)
 
     print(f"已输出 {args.out}")
-    for r in rows:
-        print(f"  字节下降 {r['byte_reduction_pct']}% / 包数下降 {r['packet_reduction_pct']}% "
-              f"/ 有效载荷比 {r['baseline_payload_ratio']}→{r['optimized_payload_ratio']}")
+    print(f"  字节: {row['baseline_total_bytes']} → {row['optimized_total_bytes']} "
+          f"(↓{row['byte_reduction_pct']}%)")
+    print(f"  包数: {row['baseline_packets']} → {row['optimized_packets']} "
+          f"(↓{row['packet_reduction_pct']}%)")
+    print(f"  有效载荷比: {row['baseline_payload_ratio']} → {row['optimized_payload_ratio']} (均<=1)")
+    print(f"  每更新字节: {row['baseline_bytes_per_update']} → {row['optimized_bytes_per_update']}")
+
 
 if __name__ == "__main__":
     main()

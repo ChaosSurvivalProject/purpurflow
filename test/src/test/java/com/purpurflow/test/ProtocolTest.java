@@ -3,6 +3,7 @@ package com.purpurflow.test;
 import com.purpurflow.common.protocol.*;
 import com.purpurflow.common.state.*;
 import com.purpurflow.common.dict.*;
+import com.purpurflow.server.egress.Fragmenter;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -67,13 +68,17 @@ class ProtocolTest {
 
     @Test
     void fragmentSplitCoversAllBytes() {
+        // 修复 R-10：直接调用 server 的真实 Fragmenter，不再用测试内复制的 split 逻辑，
+        // 避免测试与生产实现漂移。
         byte[] data = new byte[100];
         for (int i = 0; i < data.length; i++) data[i] = (byte) i;
-        FragmenterProbe.Fragment[] parts = FragmenterProbe.split(data, 32);
+        Fragmenter.Fragment[] parts = Fragmenter.split(data, 32);
         assertEquals(4, parts.length);
         int off = 0;
-        for (FragmenterProbe.Fragment p : parts) {
+        for (Fragmenter.Fragment p : parts) {
             assertArrayEquals(java.util.Arrays.copyOfRange(data, off, off + p.data().length), p.data());
+            assertEquals(off / 32, p.index());
+            assertEquals(p.index() < parts.length - 1, p.more());
             off += p.data().length;
         }
         assertEquals(100, off);
@@ -116,17 +121,4 @@ class ProtocolTest {
         assertEquals(1, reg.currentVersion());
     }
 
-    /** 分片探测（与 server Fragmenter 同逻辑，避免测试依赖 Bukkit）。 */
-    static final class FragmenterProbe {
-        record Fragment(byte[] data, int index, boolean more) {}
-        static Fragment[] split(byte[] data, int chunk) {
-            int count = (data.length + chunk - 1) / chunk;
-            Fragment[] out = new Fragment[count];
-            for (int i = 0; i < count; i++) {
-                int from = i * chunk, to = Math.min(data.length, from + chunk);
-                out[i] = new Fragment(java.util.Arrays.copyOfRange(data, from, to), i, i < count - 1);
-            }
-            return out;
-        }
-    }
 }

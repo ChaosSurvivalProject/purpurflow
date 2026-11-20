@@ -1,4 +1,9 @@
-// test：JUnit 5 单元测试（针对 common 模块，纯 Java 无 MC 依赖）。
+// test：JUnit 5 单元测试（自包含，可在纯 Java 工具链下真实编译运行）。
+//
+// 设计：把 common + server + client 全部生产源码与 test/stubs 下的最小 API 桩
+// 一并纳入测试源集，测试模块只依赖 junit，不拉 Purpur/Fabric 运行时。
+// 这样无需 Fabric Loom / Purpur 服务器即可验证协议、会话、背压、重组等全部逻辑。
+// 生产 jar 仍由各模块的 build.gradle 独立构建（server 用 purpur-api，client 用 Fabric Loom）。
 plugins {
     id 'java'
 }
@@ -9,14 +14,27 @@ java {
 
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
-    testImplementation project(':common')
+}
+
+sourceSets {
+    test {
+        java {
+            srcDirs = [
+                'src/test/java',
+                '../common/src/main/java',
+                '../server/src/main/java',
+                '../client/src/main/java',
+                'stubs'
+            ]
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
 test {
     useJUnitPlatform()
     testLogging { events 'passed', 'failed', 'skipped' }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
 }

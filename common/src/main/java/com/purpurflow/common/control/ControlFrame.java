@@ -27,13 +27,14 @@ public final class ControlFrame {
     }
 
     public static byte[] encodeHelloAck(HelloAck a) {
-        ByteBuffer b = ByteBuffer.allocate(19);
+        // 固定 16 字节：ver(1) + session(8) + dict(2) + chunk(4) + enhanced(1)。
+        ByteBuffer b = ByteBuffer.allocate(16);
         b.put((byte) a.selectedVersion());
         b.putLong(a.sessionId());
         b.putShort((short) a.dictVersion());
         b.putInt(a.serverMaxChunk());
         b.put((byte) (a.enhanced() ? 1 : 0));
-        return java.util.Arrays.copyOf(b.array(), b.position());
+        return b.array();
     }
 
     public static HelloAck decodeHelloAck(byte[] bytes) {
@@ -43,7 +44,7 @@ public final class ControlFrame {
         long session = b.getLong();
         int dict = b.getShort() & 0xFFFF;
         int chunk = b.getInt();
-        boolean enhanced = bytes.length > 16 && b.get() == 1;
+        boolean enhanced = b.get() == 1;
         return new HelloAck(ver, session, dict, chunk, enhanced);
     }
 

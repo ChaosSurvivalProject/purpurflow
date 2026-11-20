@@ -33,10 +33,20 @@ public final class FrameCodec {
     public byte[] encode(Frame frame) {
         if (frame.messages().size() > 0xFFFF) throw new FrameException("单帧消息数过多");
 
-        // 头部最多约 40B（magic/ver/flags/session/seq/ack/dict/frag/count）+ CRC 4B
-        int capacity = 48 + frame.messages().size() * 12;
-        for (Message m : frame.messages()) capacity += m.payload().length + VarInts.sizeOfVarInt(m.payload().length);
-        ByteBuffer buf = ByteBuffer.allocate(Math.min(capacity, maxFrameBytes));
+        // 修复 R-05：精确计算各字段字节数，用 long 累加防溢出；先按上限校验并抛
+        // FrameException，绝不用 Math.min 截断分配（截断会在 put 时抛 BufferOverflow
+        // 而非可控的 FrameException，且会写出被静默裁剪的损坏帧）。
+        // 头部上界：magic2 + ver1 + flags1 + session4 + seq(varlong≤10) + ack(varlong≤10)
+        //          + dict2 + frag(varint≤5) + count(varint≤5) + crc4 = 44，预留 8B 安全余量。
+        long capacity = 52L;
+        for (Message m : frame.messages()) {
+            int len = m.payload().length;
+            if (len > maxMessageBytes) throw new FrameException("单条消息超过上限: " + len);
+            capacity += VarInts.sizeOfVarInt(m.type().id())
+                      + VarInts.sizeOfVarInt(len) + (long) len;
+        }
+        if (capacity > maxFrameBytes) throw new FrameException("帧超过上限: " + capacity);
+        ByteBuffer buf = ByteBuffer.allocate((int) capacity);
 
         buf.put((byte) Frame.MAGIC0);
         buf.put((byte) Frame.MAGIC1);

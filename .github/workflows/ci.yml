@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # 纯 Java 逻辑测试：无需 Purpur/Fabric 运行时，用 test/stubs 桩自包含运行。
+  logic-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 设置 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle 测试（common+server+client 源码 + API 桩，自包含）
+        uses: gradle/actions/setup-gradle@v4
+      - run: gradle :test:test --no-daemon
+
+  # 生产构建：common + server 标准构建（client 需 Fabric Loom，单独 job）
+  build-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: gradle :common:build :server:build --no-daemon
+
+  build-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: gradle :client:build --no-daemon

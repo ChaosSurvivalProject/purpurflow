@@ -63,6 +63,22 @@ public final class Handshake {
         }
     }
 
+    /** 修复 R-06/R-12：由插件定时调用，批量降级超时会话，返回本次降级数量。 */
+    public int expireAll() {
+        int expired = 0;
+        long now = System.currentTimeMillis();
+        for (PerPlayerSession s : sessions.values()) {
+            if (s.mode() == SessionMode.HANDSHAKING && now > s.handshakeDeadlineMs()) {
+                s.setMode(SessionMode.VANILLA);
+                expired++;
+            }
+        }
+        return expired;
+    }
+
+    /** 当前会话数，供观测与回滚演练核对（H3）。 */
+    public int sessionCount() { return sessions.size(); }
+
     public void close(UUID playerId) { sessions.remove(playerId); }
 
     private Capability serverCapability() {

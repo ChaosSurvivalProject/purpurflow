@@ -4,6 +4,7 @@ out/
 *.class
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
+!releases/**/*.jar
 
 # Gradle
 .gradle/
@@ -32,6 +33,7 @@ config.local.json
 *_seal.json
 example/_work_*/
 
-# 压测输出
+# 压测输出（保留归档目录中的真实结果，忽略临时输出）
 test/bench/*.csv
 bench_result.csv
+!test/bench/results/*.csv

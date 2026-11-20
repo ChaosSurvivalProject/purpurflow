@@ -19,13 +19,15 @@ public final class PriorityQueue {
 
     public PriorityQueue(int maxSize) { this.maxSize = maxSize; }
 
-    /** 入队。队列满时：若新帧优先级更高则替换队尾，否则丢弃返回 false。 */
+    /** 入队。队列满时：若新帧优先级更高则替换最低优先级元素，否则丢弃返回 false。 */
     public boolean offer(Frame frame, Priority priority) {
         if (queue.size() >= maxSize) {
-            Entry lowest = queue.peek(); // 优先级最高，不能替换
-            // 找最低优先级元素（尾）
-            Entry tail = queue.stream().max(Comparator.comparingInt((Entry e) -> e.priority.level())
-                    .thenComparingLong(e -> e.order)).orElse(null);
+            // 修复 R-08：删除无用的 queue.peek()（最小堆 peek 返回最高优先级，与语义无关）。
+            // 真正要替换的是"优先级数值最大（最低优先级）、同优先级最旧"的队尾元素。
+            Entry tail = queue.stream()
+                    .max(Comparator.comparingInt((Entry e) -> e.priority.level())
+                            .thenComparingLong(Entry::order))
+                    .orElse(null);
             if (tail == null || priority.level() >= tail.priority.level()) return false;
             queue.remove(tail);
         }

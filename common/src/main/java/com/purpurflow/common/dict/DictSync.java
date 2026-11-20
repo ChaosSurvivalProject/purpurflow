@@ -11,8 +11,16 @@ public final class DictSync {
     public record Payload(int fromVersion, List<String> additions) {}
 
     public static byte[] encode(Payload p) {
-        int cap = 4 + p.additions().size() * 16;
-        ByteBuffer buf = ByteBuffer.allocate(cap);
+        // 修复 R-04：按每项真实 UTF-8 字节数精确预计算容量。
+        // 旧实现按 16 字节/项估算，任何超过 16 字节的字典键（长资源名很常见）都会
+        // 在 buf.put(b) 时抛 BufferOverflowException。这里用 long 累加避免整数溢出。
+        long cap = 2L + com.purpurflow.common.protocol.VarInts.sizeOfVarInt(p.additions().size());
+        for (String s : p.additions()) {
+            int len = s.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            cap += com.purpurflow.common.protocol.VarInts.sizeOfVarInt(len) + len;
+        }
+        if (cap > Integer.MAX_VALUE) throw new IllegalArgumentException("字典增量过大");
+        ByteBuffer buf = ByteBuffer.allocate((int) cap);
         buf.putShort((short) p.fromVersion());
         com.purpurflow.common.protocol.VarInts.writeVarInt(buf, p.additions().size());
         for (String s : p.additions()) {
