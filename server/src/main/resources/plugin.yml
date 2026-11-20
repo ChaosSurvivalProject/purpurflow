@@ -1,0 +1,8 @@
+name: PurpurFlow
+main: com.purpurflow.server.PurpurFlowPlugin
+version: 0.1.0
+api-version: 1.21
+description: 双端信息流带宽与稳定性优化（play 阶段 custom payload，零额外端口）
+author: ChaosSurvivalProject
+depend: []
+softdepend: [PacketEvents]

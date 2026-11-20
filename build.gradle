@@ -1,0 +1,12 @@
+// 根构建：统一 Java 21 工具链与仓库声明。
+// client 模块应用 Fabric Loom（见 client/build.gradle），common/server 为标准 java-library。
+allprojects {
+    group = 'com.purpurflow'
+    version = '0.1.0'
+
+    repositories {
+        mavenCentral()
+        maven { name = 'purpur'; url = 'https://repo.purpurmc.org/snapshots' }
+        maven { name = 'fabric'; url = 'https://maven.fabricmc.net/' }
+    }
+}

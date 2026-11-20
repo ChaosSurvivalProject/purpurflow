@@ -1,0 +1,23 @@
+// client：Fabric Mod，采用 Fabric Loom 1.14 + Mojang mappings（1.21.11 是最后混淆版本）。
+plugins {
+    id 'fabric-loom' version '1.14-SNAPSHOT'
+    id 'java'
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+dependencies {
+    minecraft 'com.mojang:minecraft:1.21.11'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.18.1'
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.139.4+1.21.11"
+
+    // 双端共享协议模块（纯 Java，零 MC 依赖）
+    implementation project(':common')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

@@ -1,0 +1,49 @@
+# PurpurFlow 配置样例（含全部开关默认值）
+# 一键回滚：把 enabled 设为 false，行为与原版完全一致。
+
+enabled: true
+
+# 协议版本白名单（H5）：只接受这些版本，否则降级为 vanilla
+protocol-whitelist:
+  - 1
+
+# 字典版本（L2）：回退时改回上一稳定版本
+dictionary-version: 1
+
+# L4 帧级压缩：默认关闭。原版链路已有压缩，先靠字典+delta 降熵
+compression:
+  enabled: false
+  threshold-bytes: 1024
+
+# H3 背压
+backpressure:
+  high-watermark: 1024
+  max-queue-per-player: 2048
+
+# 每玩家配额
+rate:
+  limit-bytes-per-sec: 262144
+  limit-packets-per-sec: 500
+
+# H4 重连补偿
+resume:
+  seq-log-length: 512
+  snapshot-ttl-sec: 300
+
+# H5 握手超时（毫秒），超时即降级不阻塞进服
+handshake:
+  timeout-ms: 3000
+
+# 分片大小（字节），0 = 运行时探测（不硬编码）
+fragment:
+  chunk-bytes: 0
+
+# 安全边界（2.9）
+security:
+  max-frame-bytes: 1048576
+  dedup-window: 256
+
+# 可选 ② 原版同步包拦截层（PacketEvents），默认关闭
+optional:
+  packetevents:
+    enabled: false

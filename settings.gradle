@@ -1,0 +1,6 @@
+rootProject.name = 'purpurflow'
+
+include 'common'
+include 'server'
+include 'client'
+include 'test'
