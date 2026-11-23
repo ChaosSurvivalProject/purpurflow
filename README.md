@@ -1,5 +1,10 @@
 # PurpurFlow — 双端信息流带宽与稳定性工程
 
+<p align="center">
+  <img src="assets/images/banner.png" alt="purpurflow 宣传图" width="820">
+</p>
+
+
 > Purpur 1.21.11 + Fabric 1.21.11 深度协同，用**更少的带宽**传输**更大的信息量**，且更稳定。
 > 命名空间 `purpurflow`，通道 `purpurflow:main`（不使用 `minecraft:` 保留命名空间）。
 
@@ -9,6 +14,13 @@
 事实核实 → 信息流盘点与选型 → 架构与帧规范 → 稳定性四约束落地
         → 工程结构与代码骨架 → 测试/压测/验收 → 风险与回滚 → 自检清单
 ```
+
+## 效果预览
+
+<p align="center">
+  <img src="assets/images/demo.png" alt="purpurflow 演示图" width="720">
+</p>
+
 
 ## 硬性约束（不可协商）
 
