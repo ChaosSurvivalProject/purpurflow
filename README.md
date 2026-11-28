@@ -141,3 +141,18 @@ ProtocolVersion         CapabilityNegotiator.negotiate(Capability client, Capabi
 ```
 
 > 本工程为协议与骨架实现，不含游戏玩法逻辑，不修改原版协议，不引入任何需要额外部署的服务。
+
+---
+
+## 🌌 星穹旅驿全家桶 / Chaos Survival Project
+
+> 本插件/模组由 **星穹旅驿（Chaos Survival Project）** 出品。探索我们的全部开源项目：
+
+- 🌐 **官方网站**：https://chaossurvivalproject.github.io/
+- ⭐ **GitHub 组织 / 源码与反馈**：https://github.com/ChaosSurvivalProject
+- 📦 **Modrinth 下载（24 项目）**：https://modrinth.com/organization/chaossurvivalproject
+- 📖 **MC百科词条**：https://www.mcmod.cn/
+
+遇到问题或有功能建议？请到本仓库的 [Issues](https://github.com/ChaosSurvivalProject/purpurflow/issues) 反馈 —— 星穹旅驿团队倾力维护。
+
+*星穹旅驿出品 · 开源免费 · 欢迎 Star ⭐*
